@@ -1,14 +1,13 @@
-/* eslint-disable max-lines */
+import axios from "axios";
+import { useTranslation } from "react-i18next";
 
-import { useChatApi } from "@/lib/api/chat/useChatApi";
 import { useBrainContext } from "@/lib/context/BrainProvider/hooks/useBrainContext";
 import { useChatContext } from "@/lib/context/ChatProvider/hooks/useChatContext";
-import { useFetch } from "@/lib/hooks";
+import { useFetch, useToast } from "@/lib/hooks";
 
 import { ChatHistory, ChatQuestion } from "../types";
 
 interface UseChatService {
-  addQuestion: (chatId: string, chatQuestion: ChatQuestion) => Promise<void>;
   addStreamQuestion: (
     chatId: string,
     chatQuestion: ChatQuestion
@@ -17,22 +16,11 @@ interface UseChatService {
 
 export const useQuestion = (): UseChatService => {
   const { fetchInstance } = useFetch();
-  const { updateHistory, updateStreamingHistory } = useChatContext();
+  const { updateStreamingHistory } = useChatContext();
   const { currentBrain } = useBrainContext();
-  const { addQuestion } = useChatApi();
 
-  const addQuestionHandler = async (
-    chatId: string,
-    chatQuestion: ChatQuestion
-  ): Promise<void> => {
-    const response = await addQuestion({
-      chatId,
-      brainId: currentBrain?.id ?? "",
-      chatQuestion,
-    });
-
-    updateHistory(response);
-  };
+  const { t } = useTranslation(["chat"]);
+  const { publish } = useToast();
 
   const handleStream = async (
     reader: ReadableStreamDefaultReader<Uint8Array>
@@ -57,7 +45,7 @@ export const useQuestion = (): UseChatService => {
           const parsedData = JSON.parse(data) as ChatHistory;
           updateStreamingHistory(parsedData);
         } catch (error) {
-          console.error("Error parsing data:", error);
+          console.error(t("errorParsingData", { ns: "chat" }), error);
         }
       });
 
@@ -71,35 +59,38 @@ export const useQuestion = (): UseChatService => {
     chatId: string,
     chatQuestion: ChatQuestion
   ): Promise<void> => {
-    if (currentBrain?.id === undefined) {
-      throw new Error("No current brain");
-    }
     const headers = {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     };
     const body = JSON.stringify(chatQuestion);
-
+    console.log("Calling API...");
     try {
       const response = await fetchInstance.post(
-        `/chat/${chatId}/question/stream?brain_id=${currentBrain.id}`,
+        `/chat/${chatId}/question/stream?brain_id=${currentBrain?.id ?? ""}`,
         body,
         headers
       );
 
       if (response.body === null) {
-        throw new Error("Response body is null");
+        throw new Error(t("resposeBodyNull", { ns: "chat" }));
       }
 
-      console.log("Received response. Starting to handle stream...");
+      console.log(t("receivedResponse"), response);
       await handleStream(response.body.getReader());
     } catch (error) {
-      console.error("Error calling the API:", error);
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
+        publish({
+          variant: "danger",
+          text: t("tooManyRequests", { ns: "chat" }),
+        });
+      }
+
+      console.error(t("errorCallingAPI", { ns: "chat" }), error);
     }
   };
 
   return {
-    addQuestion: addQuestionHandler,
     addStreamQuestion,
   };
 };

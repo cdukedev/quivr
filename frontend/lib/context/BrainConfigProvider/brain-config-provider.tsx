@@ -3,8 +3,7 @@
 
 import { createContext, useEffect, useState } from "react";
 
-import { setEmptyStringsUndefined } from "@/lib/helpers/setEmptyStringsUndefined";
-
+import { removeUndefined } from "@/lib/helpers/removeUndefined";
 import {
   getBrainConfigFromLocalStorage,
   saveBrainConfigInLocalStorage,
@@ -16,7 +15,7 @@ export const BrainConfigContext = createContext<
 >(undefined);
 
 const defaultBrainConfig: BrainConfig = {
-  model: "gpt-3.5-turbo-0613",
+  model: "gpt-3.5-turbo",
   temperature: 0,
   maxTokens: 256,
   keepLocal: true,
@@ -25,6 +24,7 @@ const defaultBrainConfig: BrainConfig = {
   openAiKey: undefined,
   supabaseKey: undefined,
   supabaseUrl: undefined,
+  prompt_id: undefined,
 };
 
 export const BrainConfigProvider = ({
@@ -39,7 +39,7 @@ export const BrainConfigProvider = ({
     setBrainConfig((config) => {
       const updatedConfig: BrainConfig = {
         ...config,
-        ...setEmptyStringsUndefined(newConfig),
+        ...removeUndefined(newConfig),
       };
       saveBrainConfigInLocalStorage(updatedConfig);
 

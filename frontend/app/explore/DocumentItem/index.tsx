@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable max-lines */
 "use client";
 import {
   Dispatch,
@@ -7,17 +7,18 @@ import {
   SetStateAction,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import Button from "@/lib/components/ui/Button";
 import { AnimatedCard } from "@/lib/components/ui/Card";
 import Ellipsis from "@/lib/components/ui/Ellipsis";
 import { Modal } from "@/lib/components/ui/Modal";
+import { useBrainContext } from "@/lib/context/BrainProvider/hooks/useBrainContext";
 import { useSupabase } from "@/lib/context/SupabaseProvider";
 import { useAxios, useToast } from "@/lib/hooks";
 import { Document } from "@/lib/types/Document";
 import { useEventTracking } from "@/services/analytics/useEventTracking";
 
-import { useBrainContext } from "@/lib/context/BrainProvider/hooks/useBrainContext";
 import DocumentData from "./DocumentData";
 
 interface DocumentProps {
@@ -35,26 +36,36 @@ const DocumentItem = forwardRef(
     const { currentBrain } = useBrainContext();
 
     const canDeleteFile = currentBrain?.role === "Owner";
+    const { t } = useTranslation(["translation", "explore"]);
 
     if (!session) {
-      throw new Error("User session not found");
+      throw new Error(t("sessionNotFound", { ns: "explore" }));
     }
 
     const deleteDocument = async (name: string) => {
       setIsDeleting(true);
       void track("DELETE_DOCUMENT");
       try {
-        if (currentBrain?.id === undefined)
-          throw new Error("Brain id not found");
+        if (currentBrain?.id === undefined) {
+          throw new Error(t("noBrain", { ns: "explore" }));
+        }
         await axiosInstance.delete(
           `/explore/${name}/?brain_id=${currentBrain.id}`
         );
         setDocuments((docs) => docs.filter((doc) => doc.name !== name)); // Optimistic update
         publish({
           variant: "success",
-          text: `${name} deleted from brain ${currentBrain.name}.`,
+          text: t("deleted", {
+            fileName: name,
+            brain: currentBrain.name,
+            ns: "explore",
+          }),
         });
       } catch (error) {
+        publish({
+          variant: "warning",
+          text: t("errorDeleting", { fileName: name, ns: "explore" }),
+        });
         console.error(`Error deleting ${name}`, error);
       }
       setIsDeleting(false);
@@ -73,17 +84,21 @@ const DocumentItem = forwardRef(
           {document.name}
         </Ellipsis>
         <div className="flex gap-2 self-end">
-          <Modal Trigger={<Button className="">View</Button>}>
+          <Modal
+            Trigger={
+              <Button className="">{t("view", { ns: "explore" })}</Button>
+            }
+          >
             <DocumentData documentName={document.name} />
           </Modal>
 
           {canDeleteFile && (
             <Modal
-              title={"Confirm"}
-              desc={`Do you really want to delete?`}
+              title={t("deleteConfirmTitle", { ns: "explore" })}
+              desc={t("deleteConfirmText", { ns: "explore" })}
               Trigger={
                 <Button isLoading={isDeleting} variant={"danger"} className="">
-                  Delete
+                  {t("deleteButton")}
                 </Button>
               }
               CloseTrigger={
@@ -91,11 +106,11 @@ const DocumentItem = forwardRef(
                   variant={"danger"}
                   isLoading={isDeleting}
                   onClick={() => {
-                    deleteDocument(document.name);
+                    void deleteDocument(document.name);
                   }}
                   className="self-end"
                 >
-                  Delete forever
+                  {t("deleteForeverButton")}
                 </Button>
               }
             >

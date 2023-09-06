@@ -9,10 +9,12 @@ import { ChatsListItem } from "./components/ChatsListItem";
 import { MiniFooter } from "./components/ChatsListItem/components/MiniFooter";
 import { NewChatButton } from "./components/NewChatButton";
 import { useChatsList } from "./hooks/useChatsList";
+import { useSelectedChatPage } from "../../[chatId]/hooks/useSelectedChatPage";
 
 export const ChatsList = (): JSX.Element => {
   const { allChats } = useChatsContext();
   const { open, setOpen } = useChatsList();
+  useSelectedChatPage();
 
   return (
     <MotionConfig transition={{ mass: 1, damping: 10 }}>
@@ -40,7 +42,7 @@ export const ChatsList = (): JSX.Element => {
           className={cn("overflow-hidden flex flex-col flex-1")}
           data-testid="chats-list"
         >
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-col flex-1 h-full">
             <NewChatButton />
             <div
               data-testid="chats-list-items"

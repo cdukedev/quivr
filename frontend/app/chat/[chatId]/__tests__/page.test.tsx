@@ -25,6 +25,11 @@ vi.mock("@/lib/context/ChatProvider/ChatProvider", () => ({
   ChatProvider: ChatProviderMock,
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useParams: () => ({ chatId: "1" }),
+}));
+
 vi.mock("@/lib/context/SupabaseProvider/supabase-provider", () => ({
   SupabaseContext: SupabaseContextMock,
 }));
@@ -39,23 +44,19 @@ vi.mock("@/lib/context/BrainConfigProvider/brain-config-provider", () => ({
 
 describe("Chat page", () => {
   it("should render chat page correctly", () => {
-    const { getByTestId, getByText } = render(
-      <SupabaseProviderMock>
-        <BrainConfigProviderMock>
-          <BrainProviderMock>
-            <SelectedChatPage />,
-          </BrainProviderMock>
-        </BrainConfigProviderMock>
-      </SupabaseProviderMock>
+    const { getByTestId } = render(
+      <ChatProviderMock>
+        <SupabaseProviderMock>
+          <BrainConfigProviderMock>
+            <BrainProviderMock>
+              <SelectedChatPage />,
+            </BrainProviderMock>
+          </BrainConfigProviderMock>
+        </SupabaseProviderMock>
+      </ChatProviderMock>
     );
 
     expect(getByTestId("chat-page")).toBeDefined();
-    expect(getByTestId("chat-messages")).toBeDefined();
     expect(getByTestId("chat-input")).toBeDefined();
-
-    expect(getByText("Chat with")).toBeDefined();
-    expect(
-      getByText("Talk to a language model about your uploaded data")
-    ).toBeDefined();
   });
 });

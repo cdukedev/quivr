@@ -6,6 +6,9 @@ toto.txt
 *.ipynb
 log.txt
 
+backend/venv
+backend/.env
+backend/*.deb
 
 
 
@@ -58,3 +61,4 @@ backend/core/local_models/*
 
 ## scripts
 .migration_info
+package-lock.json

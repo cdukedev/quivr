@@ -1,9 +1,9 @@
 -- Create users table
-CREATE TABLE IF NOT EXISTS users(
+CREATE TABLE IF NOT EXISTS user_daily_usage(
     user_id UUID REFERENCES auth.users (id),
     email TEXT,
     date TEXT,
-    requests_count INT,
+    daily_requests_count INT,
     PRIMARY KEY (user_id, date)
 );
 
@@ -16,15 +16,6 @@ CREATE TABLE IF NOT EXISTS chats(
     chat_name TEXT
 );
 
--- Create chat_history table
-CREATE TABLE IF NOT EXISTS chat_history (
-    message_id UUID DEFAULT uuid_generate_v4(),
-    chat_id UUID REFERENCES chats(chat_id),
-    user_message TEXT,
-    assistant TEXT,
-    message_time TIMESTAMP DEFAULT current_timestamp,
-    PRIMARY KEY (chat_id, message_id)
-);
 
 -- Create vector extension
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -126,14 +117,38 @@ CREATE TABLE IF NOT EXISTS api_keys(
     is_active BOOLEAN DEFAULT true
 );
 
--- Create brains table
-CREATE TABLE  IF NOT EXISTS brains (
+--- Create prompts table
+CREATE TABLE IF NOT EXISTS prompts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    title VARCHAR(255),
+    content TEXT,
+    status VARCHAR(255) DEFAULT 'private'
+);
+
+--- Create brains table
+CREATE TABLE IF NOT EXISTS brains (
   brain_id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT,
+  name TEXT NOT NULL,
   status TEXT,
+  description TEXT,
   model TEXT,
-  max_tokens TEXT,
-  temperature FLOAT
+  max_tokens INT,
+  temperature FLOAT,
+  openai_api_key TEXT,
+  prompt_id UUID REFERENCES prompts(id)
+);
+
+
+-- Create chat_history table
+CREATE TABLE IF NOT EXISTS chat_history (
+    message_id UUID DEFAULT uuid_generate_v4(),
+    chat_id UUID REFERENCES chats(chat_id),
+    user_message TEXT,
+    assistant TEXT,
+    message_time TIMESTAMP DEFAULT current_timestamp,
+    PRIMARY KEY (chat_id, message_id),
+    prompt_id UUID REFERENCES prompts(id),
+    brain_id UUID REFERENCES brains(brain_id)
 );
 
 -- Create brains X users table
@@ -166,6 +181,13 @@ CREATE TABLE IF NOT EXISTS brain_subscription_invitations (
   FOREIGN KEY (brain_id) REFERENCES brains (brain_id)
 );
 
+--- Create user_identity table
+CREATE TABLE IF NOT EXISTS user_identity (
+  user_id UUID PRIMARY KEY,
+  openai_api_key VARCHAR(255)
+);
+
+
 CREATE OR REPLACE FUNCTION public.get_user_email_by_user_id(user_id uuid)
 RETURNS TABLE (email text)
 SECURITY definer
@@ -193,7 +215,8 @@ CREATE TABLE IF NOT EXISTS migrations (
 );
 
 INSERT INTO migrations (name) 
-SELECT '20230717173000_add_get_user_id_by_user_email'
+SELECT '202308217004800_add_public_prompts_examples'
 WHERE NOT EXISTS (
-    SELECT 1 FROM migrations WHERE name = '20230717173000_add_get_user_id_by_user_email'
+    SELECT 1 FROM migrations WHERE name = '202308217004800_add_public_prompts_examples'
 );
+

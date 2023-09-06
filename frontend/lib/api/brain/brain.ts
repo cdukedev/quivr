@@ -1,7 +1,7 @@
 /* eslint-disable max-lines */
 import { AxiosInstance } from "axios";
 
-import { BrainRoleType } from "@/lib/components/NavBar/components/NavItems/components/BrainsDropDown/components/BrainActions/types";
+import { BrainRoleType } from "@/lib/components/BrainUsers/types";
 import {
   BackendMinimalBrainForUser,
   Brain,
@@ -9,7 +9,11 @@ import {
 } from "@/lib/context/BrainProvider/types";
 import { Document } from "@/lib/types/Document";
 
-import { SubscriptionUpdatableProperties } from "./types";
+import {
+  CreateBrainInput,
+  SubscriptionUpdatableProperties,
+  UpdateBrainInput,
+} from "./types";
 import { mapBackendMinimalBrainToMinimalBrain } from "./utils/mapBackendMinimalBrainToMinimalBrain";
 import {
   BackendSubscription,
@@ -29,11 +33,11 @@ export const getBrainDocuments = async (
 };
 
 export const createBrain = async (
-  name: string,
+  brain: CreateBrainInput,
   axiosInstance: AxiosInstance
 ): Promise<MinimalBrainForUser> => {
   return mapBackendMinimalBrainToMinimalBrain(
-    (await axiosInstance.post<BackendMinimalBrainForUser>(`/brains/`, { name }))
+    (await axiosInstance.post<BackendMinimalBrainForUser>(`/brains/`, brain))
       .data
   );
 };
@@ -116,4 +120,19 @@ export const updateBrainAccess = async (
     ),
     email: userEmail,
   });
+};
+
+export const setAsDefaultBrain = async (
+  brainId: string,
+  axiosInstance: AxiosInstance
+): Promise<void> => {
+  await axiosInstance.post(`/brains/${brainId}/default`);
+};
+
+export const updateBrain = async (
+  brainId: string,
+  brain: UpdateBrainInput,
+  axiosInstance: AxiosInstance
+): Promise<void> => {
+  await axiosInstance.put(`/brains/${brainId}/`, brain);
 };
