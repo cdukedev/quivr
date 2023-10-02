@@ -1,16 +1,20 @@
-import os
-import shutil
-from tempfile import SpooledTemporaryFile
+from typing import Optional
 from uuid import UUID
 
 from auth import AuthBearer, get_current_user
+from celery_worker import process_crawl_and_notify
 from crawl.crawler import CrawlWebsite
-from fastapi import APIRouter, Depends, Query, Request, UploadFile
-from models import Brain, File, UserIdentity
-from parsers.github import process_github
+from fastapi import APIRouter, Depends, Query, Request
+from logger import get_logger
+from models import Brain, UserIdentity, UserUsage
+from models.databases.supabase.knowledge import CreateKnowledgeProperties
+from models.databases.supabase.notifications import CreateNotificationProperties
+from models.notifications import NotificationsStatusEnum
+from repository.knowledge.add_knowledge import add_knowledge
+from repository.notification.add_notification import add_notification
 from utils.file import convert_bytes
-from utils.processors import filter_file
 
+logger = get_logger(__name__)
 crawl_router = APIRouter()
 
 
@@ -24,6 +28,7 @@ async def crawl_endpoint(
     request: Request,
     crawl_website: CrawlWebsite,
     brain_id: UUID = Query(..., description="The ID of the brain"),
+    chat_id: Optional[UUID] = Query(None, description="The ID of the chat"),
     enable_summarization: bool = False,
     current_user: UserIdentity = Depends(get_current_user),
 ):
@@ -34,12 +39,19 @@ async def crawl_endpoint(
     # [TODO] check if the user is the owner/editor of the brain
     brain = Brain(id=brain_id)
 
+    userDailyUsage = UserUsage(
+        id=current_user.id,
+        email=current_user.email,
+        openai_api_key=current_user.openai_api_key,
+    )
+    userSettings = userDailyUsage.get_user_settings()
+
     # [TODO] rate limiting of user for crawl
     if request.headers.get("Openai-Api-Key"):
-        brain.max_brain_size = int(os.getenv("MAX_BRAIN_SIZE_WITH_KEY", 209715200))
+        brain.max_brain_size = userSettings.get("max_brain_size", 1000000000)
 
     file_size = 1000000
-    remaining_free_space = brain.remaining_brain_size
+    remaining_free_space = userSettings.get("max_brain_size", 1000000000)
 
     if remaining_free_space - file_size < 0:
         message = {
@@ -47,35 +59,32 @@ async def crawl_endpoint(
             "type": "error",
         }
     else:
-        if not crawl_website.checkGithub():
-            (
-                file_path,
-                file_name,
-            ) = crawl_website.process()  # pyright: ignore reportPrivateUsage=none
-            # Create a SpooledTemporaryFile from the file_path
-            spooled_file = SpooledTemporaryFile()
-            with open(file_path, "rb") as f:
-                shutil.copyfileobj(f, spooled_file)
+        crawl_notification = None
+        if chat_id:
+            crawl_notification = add_notification(
+                CreateNotificationProperties(
+                    action="CRAWL",
+                    chat_id=chat_id,
+                    status=NotificationsStatusEnum.Pending,
+                )
+            )
 
-            # Pass the SpooledTemporaryFile to UploadFile
-            uploadFile = UploadFile(
-                file=spooled_file,  # pyright: ignore reportPrivateUsage=none
-                filename=file_name,
-            )
-            file = File(file=uploadFile)
-            #  check remaining free space here !!
-            message = await filter_file(
-                file=file,
-                enable_summarization=enable_summarization,
-                brain_id=brain.id,
-                openai_api_key=request.headers.get("Openai-Api-Key", None),
-            )
-            return message
-        else:
-            #  check remaining free space here !!
-            message = await process_github(
-                repo=crawl_website.url,
-                enable_summarization="false",
-                brain_id=brain_id,
-                user_openai_api_key=request.headers.get("Openai-Api-Key", None),
-            )
+        knowledge_to_add = CreateKnowledgeProperties(
+            brain_id=brain_id,
+            url=crawl_website.url,
+            extension="html",
+        )
+
+        added_knowledge = add_knowledge(knowledge_to_add)
+        logger.info(f"Knowledge {added_knowledge} added successfully")
+
+        process_crawl_and_notify.delay(
+            crawl_website_url=crawl_website.url,
+            enable_summarization=enable_summarization,
+            brain_id=brain_id,
+            openai_api_key=request.headers.get("Openai-Api-Key", None),
+            notification_id=crawl_notification.id,
+        )
+
+        return {"message": "Crawl processing has started."}
+    return message

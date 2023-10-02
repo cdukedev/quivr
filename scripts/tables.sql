@@ -24,6 +24,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS vectors (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     content TEXT,
+    file_sha1 TEXT,
     metadata JSONB,
     embedding VECTOR(1536)
 );
@@ -135,7 +136,8 @@ CREATE TABLE IF NOT EXISTS brains (
   max_tokens INT,
   temperature FLOAT,
   openai_api_key TEXT,
-  prompt_id UUID REFERENCES prompts(id)
+  prompt_id UUID REFERENCES prompts(id),
+  last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -150,6 +152,18 @@ CREATE TABLE IF NOT EXISTS chat_history (
     prompt_id UUID REFERENCES prompts(id),
     brain_id UUID REFERENCES brains(brain_id)
 );
+
+-- Create notification table
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  chat_id UUID REFERENCES chats(chat_id),
+  message TEXT,
+  action VARCHAR(255) NOT NULL,
+  status VARCHAR(255) NOT NULL
+);
+
 
 -- Create brains X users table
 CREATE TABLE IF NOT EXISTS brains_users (
@@ -214,9 +228,51 @@ CREATE TABLE IF NOT EXISTS migrations (
   executed_at TIMESTAMPTZ DEFAULT current_timestamp
 );
 
-INSERT INTO migrations (name) 
-SELECT '202308217004800_add_public_prompts_examples'
-WHERE NOT EXISTS (
-    SELECT 1 FROM migrations WHERE name = '202308217004800_add_public_prompts_examples'
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id UUID PRIMARY KEY,
+  models JSONB DEFAULT '["gpt-3.5-turbo"]'::jsonb,
+  daily_chat_credit INT DEFAULT 20,
+  max_brains INT DEFAULT 3,
+  max_brain_size INT DEFAULT 10000000
 );
+
+-- knowledge table
+CREATE TABLE IF NOT EXISTS knowledge (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  file_name TEXT,
+  url TEXT,
+  brain_id UUID NOT NULL REFERENCES brains(brain_id),
+  extension TEXT NOT NULL,
+  CHECK ((file_name IS NOT NULL AND url IS NULL) OR (file_name IS NULL AND url IS NOT NULL))
+);
+
+
+-- knowledge_vectors table
+CREATE TABLE IF NOT EXISTS knowledge_vectors (
+  knowledge_id UUID NOT NULL REFERENCES knowledge(id),
+  vector_id UUID NOT NULL REFERENCES vectors(id),
+  embedding_model TEXT NOT NULL,
+  PRIMARY KEY (knowledge_id, vector_id, embedding_model)
+);
+
+
+insert into
+  storage.buckets (id, name)
+values
+  ('quivr', 'quivr');
+
+CREATE POLICY "Access Quivr Storage 1jccrwz_0" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'quivr');
+
+CREATE POLICY "Access Quivr Storage 1jccrwz_1" ON storage.objects FOR SELECT TO anon USING (bucket_id = 'quivr');
+
+CREATE POLICY "Access Quivr Storage 1jccrwz_2" ON storage.objects FOR UPDATE TO anon USING (bucket_id = 'quivr');
+
+CREATE POLICY "Access Quivr Storage 1jccrwz_3" ON storage.objects FOR DELETE TO anon USING (bucket_id = 'quivr');
+
+INSERT INTO migrations (name) 
+SELECT '202309307004032_change_user_settings'
+WHERE NOT EXISTS (
+    SELECT 1 FROM migrations WHERE name = '202309307004032_change_user_settings'
+);
+
 

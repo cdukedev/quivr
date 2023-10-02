@@ -7,7 +7,7 @@ from supabase.client import Client
 from utils.vectors import get_unique_files_from_vector_ids
 
 from models.databases.supabase.supabase import SupabaseDB
-from models.settings import BrainRateLimiting, get_supabase_client, get_supabase_db
+from models.settings import get_supabase_client, get_supabase_db
 
 logger = get_logger(__name__)
 
@@ -17,12 +17,11 @@ class Brain(BaseModel):
     name: Optional[str] = "Default brain"
     description: Optional[str] = "This is a description"
     status: Optional[str] = "private"
-    model: Optional[str] = "gpt-3.5-turbo"
+    model: Optional[str] = None
     temperature: Optional[float] = 0.0
     max_tokens: Optional[int] = 256
     openai_api_key: Optional[str] = None
     files: List[Any] = []
-    max_brain_size = BrainRateLimiting().max_brain_size
     prompt_id: Optional[UUID] = None
 
     class Config:
@@ -42,13 +41,6 @@ class Brain(BaseModel):
         current_brain_size = sum(float(doc["size"]) for doc in self.files)
 
         return current_brain_size
-
-    @property
-    def remaining_brain_size(self):
-        return (
-            float(self.max_brain_size)  # pyright: ignore reportPrivateUsage=none
-            - self.brain_size  # pyright: ignore reportPrivateUsage=none
-        )
 
     @classmethod
     def create(cls, *args, **kwargs):
@@ -84,11 +76,11 @@ class Brain(BaseModel):
     def delete_brain(self, user_id):
         results = self.supabase_db.delete_brain_user_by_id(user_id, self.id)  # type: ignore
 
-        if len(results.data) == 0:
+        if len(results) == 0:
             return {"message": "You are not the owner of this brain."}
         else:
             self.supabase_db.delete_brain_vector(self.id)  # type: ignore
-            self.supabase_db.delete_brain_user(self.id)  # type: ignore
+            self.supabase_db.delete_brain_users(self.id)  # type: ignore
             self.supabase_db.delete_brain(self.id)  # type: ignore
 
     def create_brain_vector(self, vector_id, file_sha1):
@@ -114,4 +106,16 @@ class Brain(BaseModel):
         return self.files
 
     def delete_file_from_brain(self, file_name: str):
+        file_name_with_brain_id = f"{self.id}/{file_name}"
+        self.supabase_client.storage.from_("quivr").remove([file_name_with_brain_id])
         return self.supabase_db.delete_file_from_brain(self.id, file_name)  # type: ignore
+
+    def get_all_knowledge_in_brain(self):
+        """
+        Retrieve unique brain data (i.e. uploaded files and crawled websites).
+        """
+
+        vector_ids = self.supabase_db.get_brain_vector_ids(self.id)  # type: ignore
+        self.files = get_unique_files_from_vector_ids(vector_ids)
+
+        return self.files

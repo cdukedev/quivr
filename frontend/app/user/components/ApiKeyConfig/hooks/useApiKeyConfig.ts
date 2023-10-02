@@ -1,13 +1,16 @@
 /* eslint-disable max-lines */
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { validateOpenAIKey } from "@/app/brains-management/[brainId]/components/BrainManagementTabs/components/SettingsTab/utils/validateOpenAIKey";
 import { useAuthApi } from "@/lib/api/auth/useAuthApi";
+import { USER_IDENTITY_DATA_KEY } from "@/lib/api/user/config";
 import { useUserApi } from "@/lib/api/user/useUserApi";
 import { UserIdentity } from "@/lib/api/user/user";
 import { useToast } from "@/lib/hooks";
-import { useEventTracking } from "@/services/analytics/useEventTracking";
+import { useGAnalyticsEventTracker } from "@/services/analytics/google/useGAnalyticsEventTracker";
+import { useEventTracking } from "@/services/analytics/june/useEventTracking";
 
 // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export const useApiKeyConfig = () => {
@@ -23,17 +26,25 @@ export const useApiKeyConfig = () => {
   const { publish } = useToast();
   const [userIdentity, setUserIdentity] = useState<UserIdentity>();
   const { t } = useTranslation(["config"]);
+  const queryClient = useQueryClient();
+  const { data: userData } = useQuery({
+    queryKey: [USER_IDENTITY_DATA_KEY],
+    queryFn: getUserIdentity,
+  });
+  const { eventTracker: gaEventTracker } = useGAnalyticsEventTracker({
+    category: "QUIVR_API_KEY",
+  });
 
-  const fetchUserIdentity = async () => {
-    setUserIdentity(await getUserIdentity());
-  };
   useEffect(() => {
-    void fetchUserIdentity();
-  }, []);
+    if (userData !== undefined) {
+      setUserIdentity(userData);
+    }
+  }, [userData]);
 
   const handleCreateClick = async () => {
     try {
       void track("CREATE_API_KEY");
+      gaEventTracker?.({ action: "CREATE_API_KEY" });
       const createdApiKey = await createApiKey();
       setApiKey(createdApiKey);
     } catch (error) {
@@ -44,6 +55,8 @@ export const useApiKeyConfig = () => {
   const copyToClipboard = async (text: string) => {
     try {
       void track("COPY_API_KEY");
+      gaEventTracker?.({ action: "COPY_API_KEY" });
+
       await navigator.clipboard.writeText(text);
     } catch (err) {
       console.error("Failed to copy:", err);
@@ -80,7 +93,10 @@ export const useApiKeyConfig = () => {
       await updateUserIdentity({
         openai_api_key: openAiApiKey,
       });
-      void fetchUserIdentity();
+      void queryClient.invalidateQueries({
+        queryKey: [USER_IDENTITY_DATA_KEY],
+      });
+
       publish({
         variant: "success",
         text: "OpenAI API Key updated",
@@ -104,7 +120,9 @@ export const useApiKeyConfig = () => {
         text: "OpenAI API Key removed",
       });
 
-      void fetchUserIdentity();
+      void queryClient.invalidateQueries({
+        queryKey: [USER_IDENTITY_DATA_KEY],
+      });
     } catch (error) {
       console.error(error);
     } finally {

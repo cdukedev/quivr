@@ -1,11 +1,10 @@
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import { Inter } from "next/font/google";
 import { cookies, headers } from "next/headers";
 
 import { ToastProvider } from "@/lib/components/ui/Toast";
 import { FeatureFlagsProvider } from "@/lib/context";
-import { BrainConfigProvider } from "@/lib/context/BrainConfigProvider";
 import { BrainProvider } from "@/lib/context/BrainProvider";
 import { SupabaseProvider } from "@/lib/context/SupabaseProvider";
 
@@ -42,16 +41,14 @@ const RootLayout = async ({
         <FeatureFlagsProvider>
           <ToastProvider>
             <SupabaseProvider session={session}>
-              <BrainConfigProvider>
-                <BrainProvider>
-                  <App>
-                    <div className="flex-1">{children}</div>
-                  </App>
-                </BrainProvider>
-              </BrainConfigProvider>
+              <BrainProvider>
+                <App>
+                  <div className="flex-1">{children}</div>
+                </App>
+              </BrainProvider>
             </SupabaseProvider>
           </ToastProvider>
-          <Analytics />
+          <VercelAnalytics />
         </FeatureFlagsProvider>
       </body>
     </html>

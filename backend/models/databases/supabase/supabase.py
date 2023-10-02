@@ -5,6 +5,8 @@ from models.databases.supabase import (
     BrainSubscription,
     Chats,
     File,
+    Knowledges,
+    Notifications,
     Prompts,
     UserUsage,
     Vector,
@@ -22,6 +24,8 @@ class SupabaseDB(
     Chats,
     Vector,
     Prompts,
+    Notifications,
+    Knowledges,
 ):
     def __init__(self, supabase_client):
         self.db = supabase_client
@@ -33,3 +37,5 @@ class SupabaseDB(
         Chats.__init__(self, supabase_client)
         Vector.__init__(self, supabase_client)
         Prompts.__init__(self, supabase_client)
+        Notifications.__init__(self, supabase_client)
+        Knowledges.__init__(self, supabase_client)

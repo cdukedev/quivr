@@ -5,6 +5,7 @@ import { ToastData } from "@/lib/components/ui/Toast/domain/types";
 
 export type CrawlInputProps = {
   brainId: UUID;
+  chat_id?: UUID;
   config: {
     url: string;
     js: boolean;
@@ -21,5 +22,12 @@ export type CrawlResponse = {
 export const crawlWebsiteUrl = async (
   props: CrawlInputProps,
   axiosInstance: AxiosInstance
-): Promise<CrawlResponse> =>
-  axiosInstance.post(`/crawl?brain_id=${props.brainId}`, props.config);
+): Promise<CrawlResponse> => {
+  let crawlUrl = `/crawl?brain_id=${props.brainId}`;
+
+  if (props.chat_id !== undefined) {
+    crawlUrl = crawlUrl.concat(`&chat_id=${props.chat_id}`);
+  }
+
+  return axiosInstance.post(crawlUrl, props.config);
+};
